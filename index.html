@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MyEvent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>MyEvent — La clé de vos événements</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 100'><path d='M42 36 L38 10 L51 22 L60 4 L69 22 L82 10 L78 36 Z' fill='%23b8891a'/><rect x='42' y='38' width='36' height='6' rx='2' fill='%23b8891a'/><path d='M60 44 V94' stroke='%23b8891a' stroke-width='8' stroke-linecap='round'/><path d='M60 80 H74 M60 92 H70' stroke='%23b8891a' stroke-width='7' stroke-linecap='round'/></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -134,6 +140,13 @@ a.wa{display:block;text-align:center;background:#25d366;color:#05300f;font-weigh
 .loading{text-align:center;color:var(--muted);padding:40px 0}
 .tag-soon{font-size:12px;color:var(--goldtx);background:var(--card2);border-radius:8px;padding:8px 10px;margin-top:8px}
 .brand{display:flex;align-items:center;gap:4px}
+.ticket{background:#fff;color:#1f1a10;border-radius:var(--r);overflow:hidden;margin-bottom:14px;position:relative;border:1px solid var(--line);box-shadow:0 2px 10px rgba(80,60,10,.08)}
+.ticket .th{padding:16px 14px;color:#fff}.ticket .th h3{font-size:20px;text-shadow:0 1px 8px rgba(0,0,0,.5)}.ticket .th p{font-size:13px;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.ticket .tb{display:flex;gap:12px;padding:16px;align-items:center}
+.ticket .info{font-size:14px;line-height:1.6;margin-top:8px}
+.qr img,.qr canvas{width:100%!important;height:100%!important}
+.tick{height:5px;background:#e6e9f2;border-radius:4px;overflow:hidden}.tick i{display:block;height:100%;background:var(--acc);transition:width 1s linear}
+.stamp{position:absolute;top:80px;right:14px;transform:rotate(-12deg);border:3px solid var(--bad);color:var(--bad);font-weight:800;padding:3px 10px;border-radius:8px;background:rgba(255,255,255,.9);font-family:Sora;z-index:2}
 .ev-poster{display:block;width:100%;height:auto;max-height:640px;object-fit:contain;background:#f6f0e1}
 .ev-title{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px 0}
 .ev-title h3{font-size:19px}
@@ -307,6 +320,7 @@ async function loadMe(){
   ME=data;
 }
 function render(){
+  if(mode==="ticket") return renderTicket();
   if(!ME){ if(mode==="events") return renderPublicEvents(); if(mode==="propose") return renderPublicPropose(); return renderHome(); }
   const T=TABS[ME.role]; if(!tab||!T.find(x=>x[0]===tab)) tab=T[0][0];
   $("#app").innerHTML=`<div class="wrap"><div class="top">${BRAND()}
@@ -333,6 +347,7 @@ function renderHome(){
   shell(`<p class="greet" style="font-size:20px;margin:18px 0 0">${greet()} 👋</p><p class="muted small" style="margin-bottom:-4px">Bienvenue sur MyEvent</p><div class="login-hero"><div class="logo-glow">${LOGO(110)}</div><div class="brand" style="justify-content:center;margin-top:6px"><span class="bt">my<span>event</span></span></div>${slogan()}</div>
    <button class="btn full" style="margin-top:16px" onclick="mode='events';render()">🎉 Voir les événements</button>
    <button class="btn sec full" style="margin-top:10px" onclick="mode='propose';render()">📝 Proposer un événement</button>
+   <div id="installBox">${installHTML()}</div>
    <div class="card" style="margin-top:16px"><h3>Connexion du personnel</h3>
     <label>Identifiant (ID) ou e-mail</label><input class="f" id="lid" autocapitalize="none" autocomplete="username" placeholder="Ex : VEN01">
     <label>Mot de passe</label><input class="f" id="lpw" type="password" autocomplete="current-password">
@@ -613,7 +628,7 @@ function setPin(id){
 }
 
 VIEWS["a-tickets"]=async()=>{
-  const [tks,evs,types]=await Promise.all([q(sb.from("tickets").select("*").order("created_at",{ascending:false}).limit(500)),q(sb.from("events").select("id,name")),q(sb.from("ticket_types").select("id,name"))]);
+  const [tks,evs,types]=await Promise.all([q(sb.from("tickets").select("id,number,code6,event_id,type_id,price,currency,holder_name,phone,email,channel,seller_id,quota_id,operator,id_doc_type,id_doc_last4,status,created_at,used_at,used_by,link_token,device_bound_at").order("created_at",{ascending:false}).limit(500)),q(sb.from("events").select("id,name")),q(sb.from("ticket_types").select("id,name"))]);
   window._T={tks,evs,types};
   $("#view").innerHTML=`<h1>Billets</h1><p class="lead">Recherche, filtres, annulation et remboursement.</p>
    <div class="search"><input class="f" id="tq" placeholder="Nom, téléphone, n° de billet ou code" oninput="drawTk()"></div>
@@ -626,7 +641,12 @@ function drawTk(){
   const L=tks.filter(t=>(!fe||t.event_id===fe)&&(!fs||t.status===fs)&&(!v||(t.holder_name+" "+(t.phone||"")+" "+t.number+" "+t.code6).toLowerCase().includes(v)));
   $("#tlist").innerHTML=`<p class="small muted" style="margin-bottom:6px">${L.length} billet(s)</p>`+(L.slice(0,100).map(t=>{const e=evs.find(x=>x.id===t.event_id)||{},ty=types.find(x=>x.id===t.type_id)||{};return `<div class="card" style="padding:10px 12px">
     <div class="row" style="padding:0;border:none"><div class="t"><b>${esc(t.holder_name)}</b><small>${t.number} · ${esc(e.name)} · ${esc(ty.name)} · ${money(t.price,t.currency)}<br>${t.channel==="app"?"Achat en ligne":"Vente en espèces"} · ${fmtDT(t.created_at)}</small></div>${pill(STATUS[t.status]||[t.status,""])}</div>
-    ${t.status==="vendu"?`<div class="btns"><button class="btn sec sm" onclick="tkAct('${t.id}','annule')">Annuler</button><button class="btn sec sm" onclick="tkAct('${t.id}','rembourse')">Rembourser</button></div>`:""}</div>`;}).join("")||'<p class="muted">Aucun billet.</p>');
+    ${t.device_bound_at?`<p class="small muted" style="margin-top:6px">📱 Billet ouvert et lié à un téléphone le ${fmtDT(t.device_bound_at)}</p>`:t.link_token&&t.phone?`<p class="small muted" style="margin-top:6px">📱 Lien pas encore ouvert</p>`:""}
+    ${t.status==="vendu"?`<div class="btns"><button class="btn sec sm" onclick="tkAct('${t.id}','annule')">Annuler</button><button class="btn sec sm" onclick="tkAct('${t.id}','rembourse')">Rembourser</button>${t.link_token&&t.phone?`<a class="btn sec sm" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${waNum(t.phone)}?text=${encodeURIComponent("🎟️ MyEvent — Votre billet n° "+t.number+"\n👉 "+ticketLink(t.number,t.link_token))}">Renvoyer le lien</a>`:""}${t.device_bound_at?`<button class="btn sec sm" onclick="resetDevice('${t.id}')">Changer de téléphone</button>`:""}</div>`:""}</div>`;}).join("")||'<p class="muted">Aucun billet.</p>');
+}
+function resetDevice(id){
+  const t=window._T.tks.find(x=>x.id===id);
+  confirmBox("Changer de téléphone",`Billet ${t.number} · ${esc(t.holder_name)}. À utiliser si l'acheteur a perdu ou changé de téléphone : le billet pourra être ouvert sur un nouveau téléphone, l'ancien ne fonctionnera plus.`,"Autoriser un nouveau téléphone",async()=>{ await rpc("admin_reset_device",{p_ticket:id}); toast("Le billet peut être ouvert sur un nouveau téléphone"); render(); });
 }
 function tkAct(id,st){
   const t=window._T.tks.find(x=>x.id===id), lbl=st==="annule"?"Annuler":"Rembourser";
@@ -752,8 +772,10 @@ function sellStep(){
     closeModal(); saleDone(r,k,p);
   });
 }
-function saleDone(r,k,phone){
-  const msg=`🎟️ MyEvent — Votre billet\n${r.event}\n${fmtDT(r.starts_at)} · ${r.place}\nNom : ${r.holder}\nBillet n° ${r.number} (${r.type})\nCode d'entrée : ${r.code6}\nPrésentez ce code à l'entrée. Ne le partagez pas.`;
+const ticketLink=(number,token)=>location.origin+location.pathname+"#t-"+number+"-"+token;
+async function saleDone(r,k,phone){
+  let link=""; try{ const row=await q(sb.from("tickets").select("link_token").eq("number",r.number).maybeSingle()); if(row&&row.link_token) link=ticketLink(r.number,row.link_token); }catch(e){}
+  const msg=`🎟️ MyEvent — Votre billet\n${r.event}\n${fmtDT(r.starts_at)} · ${r.place}\nNom : ${r.holder}\nBillet n° ${r.number} (${r.type})`+(link?`\n\n👉 Ouvrez votre billet (QR code sécurisé) :\n${link}\n\nOuvrez-le sur VOTRE téléphone : il s'y attache automatiquement.`:"")+`\nCode de secours : ${r.code6}\nNe partagez pas ce message.`;
   $("#view").innerHTML=`<div class="res ok" style="margin-top:14px"><div class="ic">✅</div><h2>Vente enregistrée</h2><p>Billet n° ${esc(r.number)} · ${esc(r.holder)}</p></div>
    <div class="card center"><h3>Code d'entrée</h3><div class="code6" style="font-size:30px;margin:8px 0">${esc(r.code6)}</div>
     <p class="small muted">${k==="none"?"Écrivez ce code sur le carton de l'acheteur. À l'entrée, l'agent vérifiera la photo et la pièce d'identité.":"L'acheteur présentera ce code à l'entrée."}</p></div>
@@ -790,8 +812,9 @@ VIEWS["g-check"]=()=>{
     if(!(r&&r.data)) return toast("Aucun QR code lisible"); act(null,async()=>showResult(await rpc("agent_scan_qr",{p_payload:r.data}))); }; img.src=URL.createObjectURL(f); };
 };
 function checkCode(btn){
-  const code=$("#cc").value.trim().toUpperCase().replace(/\s/g,"");
-  if(code.startsWith("ME1|")) return act(btn,async()=>showResult(await rpc("agent_scan_qr",{p_payload:code})));
+  const raw=$("#cc").value.trim();
+  if(raw.startsWith("ME1|")) return act(btn,async()=>showResult(await rpc("agent_scan_qr",{p_payload:raw})));
+  const code=raw.toUpperCase().replace(/\s/g,"");
   if(!/^[A-Z0-9]{6}$/.test(code)) return toast("Saisissez un code à 6 caractères");
   act(btn,async()=>{ const L=await rpc("agent_lookup",{p_query:code}); const t=(L||[]).find(x=>x.number!==undefined); if(!t) return showResult({result:"inconnu"}); identity(t); });
 }
@@ -815,21 +838,97 @@ function gsearch(btn){
     $("#gl").innerHTML=`<div class="card">${window._GL.map((t,i)=>`<div class="row"><div class="t"><b>${esc(t.holder)}</b><small>${t.number} · ${esc(t.event)} · ${esc(t.type)}${t.id_doc_type?" · 🪪 pièce":""}</small></div>${t.status==="vendu"?`<button class="btn sm" onclick="identity(window._GL[${i}])">Vérifier</button>`:pill(STATUS[t.status]||[t.status,""])}</div>`).join("")||'<p class="muted">Aucun résultat.</p>'}</div>`; });
 }
 
+/* =========================================================
+   BILLET DE L'ACHETEUR : QR dynamique lié au téléphone, visible hors connexion
+   ========================================================= */
+const WIN=30;
+function deviceId(){ try{ let d=localStorage.getItem("me_device"); if(!d){ const a=crypto.getRandomValues(new Uint8Array(24)); d=[...a].map(x=>x.toString(16).padStart(2,"0")).join(""); localStorage.setItem("me_device",d); } return d; }catch(e){ return null; } }
+async function hmac12(key,msg){
+  const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(key),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  const s=new Uint8Array(await crypto.subtle.sign("HMAC",k,new TextEncoder().encode(msg)));
+  let b=""; s.slice(0,12).forEach(x=>b+=String.fromCharCode(x)); return btoa(b).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+let tkTimer=null;
+async function renderTicket(){
+  clearInterval(tkTimer);
+  const {number,token}=window._TK||{}, store="me_ticket_"+number;
+  shell(`<div id="tkv"><div class="loading">Ouverture de votre billet…</div></div>`);
+  let cached=null; try{ cached=JSON.parse(localStorage.getItem(store)||"null"); }catch(e){}
+  if(cached&&cached.token===token) paintTicket(cached.data,true);
+  const dev=deviceId();
+  if(!dev){ $("#tkv").innerHTML=`<div class="err">Votre navigateur bloque l'enregistrement du billet. Ouvrez le lien dans Chrome.</div>`; return; }
+  try{
+    const r=await rpc("ticket_open",{p_number:number,p_token:token,p_device:dev});
+    if(r.error){
+      if(cached&&cached.token===token&&r.error!=="autre_appareil") return;
+      const m={lien:"Ce lien de billet n'est pas valide. Vérifiez qu'il a été copié en entier.",autre_appareil:"Ce billet est déjà ouvert sur un autre téléphone. Pour la sécurité, il ne peut être utilisé que sur un seul téléphone. Si vous avez changé de téléphone, contactez l'organisateur.",appareil:"Votre navigateur n'est pas compatible. Ouvrez le lien dans Chrome."}[r.error]||r.error;
+      try{ localStorage.removeItem(store); }catch(e){}
+      clearInterval(tkTimer); $("#tkv").innerHTML=`<div class="res bad" style="margin-top:20px"><div class="ic">🔒</div><h2>Billet indisponible ici</h2><p>${esc(m)}</p></div>`; return;
+    }
+    try{ localStorage.setItem(store,JSON.stringify({token,data:r})); }catch(e){}
+    paintTicket(r,false);
+  }catch(e){ if(!cached) $("#tkv").innerHTML=`<div class="err">${esc(cleanErr(e))}</div><button class="btn sec" onclick="renderTicket()">Réessayer</button>`; }
+}
+function paintTicket(t,offline){
+  clearInterval(tkTimer);
+  const st=t.status==="vendu"&&new Date(t.starts_at).getTime()+DAY<Date.now()?"expire":t.status, live=st==="vendu";
+  $("#tkv").innerHTML=`<h1>Mon billet</h1><p class="lead">${live?"Présentez ce QR code à l'entrée. Il change toutes les 30 secondes : une capture d'écran ne fonctionne pas.":"Ce billet n'est plus utilisable."}</p>
+   ${offline?`<p class="small muted" style="margin:-8px 0 10px">📶 Affiché sans connexion</p>`:""}
+   <div class="ticket">
+    <div class="th" style="background:${t.poster_url?`linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.45)),url(${esc(t.poster_url)}) center/cover`:"linear-gradient(135deg,#8f6a10,#d4af37)"}"><h3>${esc(t.event)}</h3><p>${fmtDT(t.starts_at)} · ${esc(t.place)}</p></div>
+    ${live?"":`<div class="stamp">${(STATUS[st]||[st])[0].toUpperCase()}</div>`}
+    <div class="tb" style="flex-direction:column;text-align:center">
+     <div class="qr" id="tkqr" style="width:220px;height:220px">${live?"":`<div style="width:100%;height:100%;background:#eef0f5;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#8a93a8">Inactif</div>`}</div>
+     ${live?`<div class="tick" style="width:220px;margin:4px 0 0"><i id="tkbar"></i></div>`:""}
+     <div class="info"><b style="font-size:18px">${esc(t.holder)}</b><br>${esc(t.type)} · Billet n° ${esc(t.number)}<br><span class="small" style="color:#756b55">Code de secours : <b>${esc(t.code6)}</b></span></div>
+    </div></div>
+   <p class="small muted center">MyEvent — La clé de vos événements</p>`;
+  if(!live) return;
+  const draw=async()=>{
+    const el=document.getElementById("tkqr"); if(!el){ clearInterval(tkTimer); return; }
+    const w=Math.floor(Date.now()/1000/WIN);
+    if(el.dataset.w!==String(w)){ el.dataset.w=w; const payload=`ME1|${t.number}|${w}|${await hmac12(t.qr_key,t.number+"|"+w)}`; el.innerHTML="";
+      try{ new QRCode(el,{text:payload,width:440,height:440,correctLevel:QRCode.CorrectLevel.M}); }catch(e){ el.textContent="QR indisponible"; } }
+    const b=document.getElementById("tkbar"); if(b) b.style.width=((WIN-(Math.floor(Date.now()/1000)%WIN))/WIN*100)+"%";
+  };
+  draw(); tkTimer=setInterval(draw,1000);
+}
+
 /* ---------- inactivité : 5 minutes sans utilisation -> retour à l'accueil (et déconnexion du personnel) ---------- */
 const IDLE_MS=5*60000; let lastActive=Date.now(), idleTimer=null;
 function resetIdle(){ lastActive=Date.now(); clearTimeout(idleTimer); idleTimer=setTimeout(onIdle,IDLE_MS); }
 function onIdle(){
   if(Date.now()-lastActive<IDLE_MS-1000) return resetIdle();
   if(ME) return logout("Session fermée après 5 minutes d'inactivité. Reconnectez-vous.");
-  if(mode!=="home"){ mode="home"; closeModal(); render(); }
+  if(mode!=="home"&&mode!=="ticket"){ mode="home"; closeModal(); render(); }
 }
 ["pointerdown","keydown","touchstart","scroll"].forEach(ev=>window.addEventListener(ev,()=>{ if(Date.now()-lastActive>1000) resetIdle(); else lastActive=Date.now(); },{passive:true}));
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"){ if(Date.now()-lastActive>=IDLE_MS) onIdle(); else resetIdle(); } });
+
+window.addEventListener("hashchange",()=>{ const mt=location.hash.match(/^#t-([A-Z0-9]{8})-([A-Z0-9]{16})$/); if(mt){ mode="ticket"; window._TK={number:mt[1],token:mt[2]}; render(); } });
+/* ---------- application installable ---------- */
+let installEvt=null;
+const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
+function installHTML(){
+  if(isStandalone()) return "";
+  if(installEvt) return `<button class="btn full" style="margin-top:10px;background:#1f1a10;color:#f3e3a8" onclick="installApp()">📲 Installer l'application MyEvent</button>`;
+  if(isIOS()) return `<div class="tag-soon" style="margin-top:10px">📲 <b>Installer sur iPhone :</b> appuyez sur <b>Partager</b> (le carré avec la flèche ⬆️), puis sur <b>« Sur l'écran d'accueil »</b>.</div>`;
+  return `<div class="tag-soon" style="margin-top:10px">📲 <b>Installer l'application :</b> dans Chrome, menu <b>⋮</b> puis <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.</div>`;
+}
+function refreshInstall(){ const b=$("#installBox"); if(b) b.innerHTML=installHTML(); }
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); installEvt=e; refreshInstall(); });
+window.addEventListener("appinstalled",()=>{ installEvt=null; refreshInstall(); toast("MyEvent est installée sur votre téléphone 🎉"); });
+async function installApp(){ if(!installEvt) return; installEvt.prompt(); try{ await installEvt.userChoice; }catch(e){} installEvt=null; refreshInstall(); }
+if("serviceWorker" in navigator&&(location.protocol==="https:"||/^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
 
 /* ---------- démarrage ---------- */
 sb.auth.onAuthStateChange((ev)=>{ if(ev==="SIGNED_OUT"){ ME=null; } });
 (async()=>{
   const h=location.hash; if(h.startsWith("#e-")){ mode="events"; window._focusEv=h.slice(3); }
+  const mt=h.match(/^#t-([A-Z0-9]{8})-([A-Z0-9]{16})$/); if(mt){ mode="ticket"; window._TK={number:mt[1],token:mt[2]}; }
   try{ await loadMe(); }catch(e){}
   cacheLoad(); render(); resetIdle();
 })();
