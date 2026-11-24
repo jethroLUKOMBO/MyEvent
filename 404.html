@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyEvent — La clé de vos événements</title>
+<meta property="og:type" content="website"><meta property="og:site_name" content="MyEvent">
+<meta property="og:title" content="MyEvent — La clé de vos événements">
+<meta property="og:description" content="Billets numériques sécurisés : achetez, recevez et présentez vos billets depuis votre téléphone.">
+<meta property="og:image" content="https://jethrolukombo.github.io/MyEvent/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<script>
+(function(){
+  var p=location.pathname, i=p.toLowerCase().indexOf("/myevent/"), base=i>=0?p.slice(0,i+9):"/";
+  var m=p.match(/\/e\/([0-9a-fA-F-]{36})/), h=location.hash&&location.hash.length>1?location.hash:(m?"#e-"+m[1]:"");
+  location.replace(base+h);
+})();
+</script>
+</head><body style="font-family:sans-serif;text-align:center;padding:40px"><p>Ouverture de MyEvent…</p><p><a href="/MyEvent/">Ouvrir MyEvent</a></p></body></html>
